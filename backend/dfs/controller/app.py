@@ -72,7 +72,7 @@ class UploadReq(BaseModel):
 class AllocateReq(BaseModel):
     index: int
     exclude_nodes: list[str] = []
-    have: list[dict] = []          # réplicas já confirmadas [{node_id, disk_id}]
+    have: list[dict] = []
 
 
 class CommitChunk(BaseModel):
@@ -302,7 +302,7 @@ def create_app(cfg: dict) -> FastAPI:
         csize = chunk_size_bytes(cfg)
         nchunks = math.ceil(req.size / csize) if req.size else 0
         enc = bool(cfg["encryption"]["enabled"])
-        overhead = 28 if enc else 0           # nonce + tag do AES-GCM
+        overhead = 28 if enc else 0
         upload_id, version_id = uuid.uuid4().hex, uuid.uuid4().hex
         chunk_ids = [uuid.uuid4().hex for _ in range(nchunks)]
 
@@ -444,7 +444,6 @@ def create_app(cfg: dict) -> FastAPI:
         rank = {"alive": 0, "suspect": 1, "draining": 2}
         for c in store.version_chunks(v["id"]):
             views = [x for x in (replica_view(r) for r in reps.get(c["id"], [])) if x["state"] in rank]
-            # réplica mais "próxima": viva, menos carregada; desempate aleatório espalha a leitura
             random.shuffle(views)
             views.sort(key=lambda x: (rank[x["state"]], cluster.nodes[x["node_id"]].active_ops))
             chunks.append({"index": c["idx"], "chunk_id": c["id"], "size": c["size"], "hash": c["hash"],

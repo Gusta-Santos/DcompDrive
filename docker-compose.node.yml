@@ -1,0 +1,30 @@
+# Nó de armazenamento para rodar em OUTRA máquina física (Parte 2: máquinas reais).
+#
+#   CONTROLLER_URL=http://IP_DO_CONTROLADOR:8000 NODE_ID=node7 PUBLIC_HOST=IP_DESTA_MAQUINA \
+#     docker compose -f docker-compose.node.yml up -d --build
+#
+# O nó se registra sozinho no controlador (descoberta por registro ativo, RF6).
+services:
+  storage:
+    build: ./backend
+    image: dcomp-drive-backend
+    command: ["python", "-m", "dfs.storage"]
+    environment:
+      CONTROLLER_URL: ${CONTROLLER_URL:?defina CONTROLLER_URL}
+      NODE_ID: ${NODE_ID:?defina NODE_ID}
+      ZONE: ${ZONE:-remota}
+      PORT: "9000"
+      DISKS: /data/disk1,/data/disk2
+      DISK_CAPACITY_MB: ${DISK_CAPACITY_MB:-0}
+      INTERNAL_URL: http://${PUBLIC_HOST:?defina PUBLIC_HOST}:${NODE_PORT:-9000}
+      PUBLIC_URL: http://${PUBLIC_HOST}:${NODE_PORT:-9000}
+      LOG_FILE: /logs/${NODE_ID}.jsonl
+    volumes:
+      - disk1:/data/disk1
+      - disk2:/data/disk2
+      - ./logs:/logs
+    ports: ["${NODE_PORT:-9000}:9000"]
+
+volumes:
+  disk1:
+  disk2:

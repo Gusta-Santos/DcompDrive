@@ -1,0 +1,111 @@
+# DComp Drive: 1 controlador + 5 nós de armazenamento (2 discos cada, 3 zonas) + interface web.
+#
+#   docker compose up -d --build            sobe tudo
+#   docker compose stop storage3            simula queda de máquina
+#   docker compose start storage3           a máquina volta (reconciliação)
+#   docker compose --profile extra up -d storage6   adiciona um nó novo com o sistema rodando
+#   docker compose run --rm cli status      CLI dentro da rede Docker
+#
+# Cada "disco" é um volume Docker distinto. Os logs JSON vão para ./logs (Parte 2).
+# Para clientes em OUTRA máquina, defina PUBLIC_HOST com o IP desta máquina:
+#   PUBLIC_HOST=192.168.0.10 docker compose up -d
+
+x-storage: &storage
+  build: ./backend
+  image: dcomp-drive-backend
+  command: ["python", "-m", "dfs.storage"]
+  depends_on: [controller]
+  volumes:
+    - ./logs:/logs
+
+x-storage-env: &storage-env
+  CONTROLLER_URL: http://controller:8000
+  PORT: "9000"
+  DISKS: /data/disk1,/data/disk2
+  DISK_CAPACITY_MB: "1024"
+
+services:
+  controller:
+    build: ./backend
+    image: dcomp-drive-backend
+    command: ["python", "-m", "dfs.controller", "--config", "config/config.yaml"]
+    environment:
+      DFS__LOGGING__FILE: /logs/controller.jsonl
+      # exemplos de sobrescrita sem editar o YAML:
+      # DFS__CLUSTER__REPLICATION_FACTOR: "3"
+      # DFS__ENCRYPTION__ENABLED: "true"
+    volumes:
+      - controller-data:/app/data          # banco de metadados + chave-mestra
+      - ./backend/config:/app/config:ro    # editar o YAML não exige rebuild
+      - ./logs:/logs
+    ports: ["8000:8000"]
+
+  storage1:
+    <<: *storage
+    environment: { <<: *storage-env, NODE_ID: node1, ZONE: zona-a, INTERNAL_URL: "http://storage1:9000", PUBLIC_URL: "http://${PUBLIC_HOST:-localhost}:9001", LOG_FILE: /logs/node1.jsonl }
+    volumes: [node1-disk1:/data/disk1, node1-disk2:/data/disk2, ./logs:/logs]
+    ports: ["9001:9000"]
+
+  storage2:
+    <<: *storage
+    environment: { <<: *storage-env, NODE_ID: node2, ZONE: zona-b, INTERNAL_URL: "http://storage2:9000", PUBLIC_URL: "http://${PUBLIC_HOST:-localhost}:9002", LOG_FILE: /logs/node2.jsonl }
+    volumes: [node2-disk1:/data/disk1, node2-disk2:/data/disk2, ./logs:/logs]
+    ports: ["9002:9000"]
+
+  storage3:
+    <<: *storage
+    environment: { <<: *storage-env, NODE_ID: node3, ZONE: zona-c, INTERNAL_URL: "http://storage3:9000", PUBLIC_URL: "http://${PUBLIC_HOST:-localhost}:9003", LOG_FILE: /logs/node3.jsonl }
+    volumes: [node3-disk1:/data/disk1, node3-disk2:/data/disk2, ./logs:/logs]
+    ports: ["9003:9000"]
+
+  storage4:
+    <<: *storage
+    environment: { <<: *storage-env, NODE_ID: node4, ZONE: zona-a, INTERNAL_URL: "http://storage4:9000", PUBLIC_URL: "http://${PUBLIC_HOST:-localhost}:9004", LOG_FILE: /logs/node4.jsonl }
+    volumes: [node4-disk1:/data/disk1, node4-disk2:/data/disk2, ./logs:/logs]
+    ports: ["9004:9000"]
+
+  storage5:
+    <<: *storage
+    environment: { <<: *storage-env, NODE_ID: node5, ZONE: zona-b, INTERNAL_URL: "http://storage5:9000", PUBLIC_URL: "http://${PUBLIC_HOST:-localhost}:9005", LOG_FILE: /logs/node5.jsonl }
+    volumes: [node5-disk1:/data/disk1, node5-disk2:/data/disk2, ./logs:/logs]
+    ports: ["9005:9000"]
+
+  # nó extra para demonstrar descoberta automática (RF6 / experimento E8)
+  storage6:
+    <<: *storage
+    profiles: ["extra"]
+    environment: { <<: *storage-env, NODE_ID: node6, ZONE: zona-c, INTERNAL_URL: "http://storage6:9000", PUBLIC_URL: "http://${PUBLIC_HOST:-localhost}:9006", LOG_FILE: /logs/node6.jsonl }
+    volumes: [node6-disk1:/data/disk1, node6-disk2:/data/disk2, ./logs:/logs]
+    ports: ["9006:9000"]
+
+  web:
+    build: ./frontend
+    depends_on: [controller]
+    ports: ["${WEB_PORT:-8080}:80"]   # WEB_PORT=8088 docker compose up -d  se a 8080 estiver ocupada
+
+  # CLI dentro da rede Docker (usa endereços internos dos nós). Arquivos em ./files
+  cli:
+    image: dcomp-drive-backend
+    profiles: ["tools"]
+    entrypoint: ["python", "-m", "dfs.client", "--internal"]
+    environment:
+      DFS_CONTROLLER: http://controller:8000
+      PYTHONPATH: /app            # o código está em /app; o diretório de trabalho é /files
+    working_dir: /files
+    volumes:
+      - ./files:/files
+
+volumes:
+  controller-data:
+  node1-disk1:
+  node1-disk2:
+  node2-disk1:
+  node2-disk2:
+  node3-disk1:
+  node3-disk2:
+  node4-disk1:
+  node4-disk2:
+  node5-disk1:
+  node5-disk2:
+  node6-disk1:
+  node6-disk2:

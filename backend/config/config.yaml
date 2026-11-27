@@ -1,0 +1,55 @@
+# Configuração do DComp Drive (lida pelo CONTROLADOR — fonte única de verdade).
+# Qualquer chave pode ser sobrescrita por variável de ambiente
+#   DFS__SECAO__CHAVE=valor     (ex.: DFS__CLUSTER__REPLICATION_FACTOR=2)
+# ou por linha de comando
+#   python -m dfs.controller --set cluster.replication_factor=2
+
+cluster:
+  replication_factor: 3
+  write_quorum: 2
+  under_replication_policy: accept
+  allow_same_machine_fallback: true
+  chunk_size_mb: 4
+  hash_algorithm: sha256
+
+encryption:
+  enabled: false
+  algorithm: AES-256-GCM
+  master_key_file: data/controller/master.key
+
+heartbeat:
+  interval_s: 2
+  suspect_after_s: 6
+  dead_after_s: 12
+  block_report_interval_s: 30
+
+storage:
+  disk_usage_limit: 0.90
+  scrub_interval_s: 60
+
+placement:
+  policy: free_space
+  zone_aware: true
+
+rereplication:
+  max_concurrent: 4
+  max_per_node: 2  
+  bandwidth_mbps: 50  
+  check_interval_s: 2
+
+gc:
+  interval_s: 5
+  delete_grace_s: 30 
+  orphan_grace_s: 120 
+
+leases:
+  write_lease_s: 60
+
+controller:
+  host: 0.0.0.0
+  port: 8000
+  db_path: data/controller/metadata.db
+  node_request_timeout_s: 10
+
+logging:
+  file: null
